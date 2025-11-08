@@ -1,0 +1,201 @@
+{
+  "info": {
+    "name": "MelodyApp Backend API",
+    "description": "Postman collection for MelodyApp backend endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "8c7b2f74-55b8-4f0a-9a50-2b2f3f9e9caa"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "token", "value": "REPLACE_WITH_JWT" },
+    { "key": "songId", "value": "REPLACE_SONG_ID" },
+    { "key": "albumId", "value": "REPLACE_ALBUM_ID" },
+    { "key": "playlistId", "value": "REPLACE_PLAYLIST_ID" },
+    { "key": "userId", "value": "REPLACE_USER_ID" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john\",\n  \"email\": \"john@example.com\",\n  \"password\": \"pass123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"pass123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me (protected)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users (protected)",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"newname\"\n}" }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Songs",
+      "item": [
+        {
+          "name": "Health/Info",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/songs", "host": ["{{baseUrl}}"], "path": ["songs"] } }
+        },
+        {
+          "name": "Get Song",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/songs/{{songId}}", "host": ["{{baseUrl}}"], "path": ["songs", "{{songId}}"] } }
+        },
+        {
+          "name": "Stream Song",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/songs/{{songId}}/stream", "host": ["{{baseUrl}}"], "path": ["songs", "{{songId}}", "stream"] } }
+        },
+        {
+          "name": "Record Listen",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/songs/{{songId}}/listen", "host": ["{{baseUrl}}"], "path": ["songs", "{{songId}}", "listen"] },
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{userId}}\"\n}" }
+          }
+        },
+        {
+          "name": "Upload Song (protected, multipart)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/songs/upload", "host": ["{{baseUrl}}"], "path": ["songs", "upload"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "My Song", "type": "text" },
+                { "key": "artist", "value": "Artist", "type": "text" },
+                { "key": "image", "value": "cover.jpg", "type": "text" },
+                { "key": "albumId", "value": "{{albumId}}", "type": "text" },
+                { "key": "releaseDate", "value": "2024-01-01T00:00:00.000Z", "type": "text" },
+                { "key": "genre", "value": "Pop", "type": "text" },
+                { "key": "file", "src": "C:/path/to/audio.mp3", "type": "file" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Albums",
+      "item": [
+        { "name": "List Albums", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/albums", "host": ["{{baseUrl}}"], "path": ["albums"] } } },
+        { "name": "Get Album", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/albums/{{albumId}}", "host": ["{{baseUrl}}"], "path": ["albums", "{{albumId}}"] } } }
+      ]
+    },
+    {
+      "name": "Playlists (protected)",
+      "item": [
+        {
+          "name": "Create Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/playlists", "host": ["{{baseUrl}}"], "path": ["playlists"] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Favorites\",\n  \"songs\": [\"{{songId}}\"]\n}" }
+          }
+        },
+        {
+          "name": "My Playlists",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/playlists/user", "host": ["{{baseUrl}}"], "path": ["playlists", "user"] }
+          }
+        },
+        {
+          "name": "Get Playlist",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/playlists/{{playlistId}}", "host": ["{{baseUrl}}"], "path": ["playlists", "{{playlistId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stats",
+      "item": [
+        { "name": "Top Songs", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stats/top?limit=5", "host": ["{{baseUrl}}"], "path": ["stats", "top"], "query": [{"key": "limit", "value": "5"}] } } },
+        { "name": "Total Plays", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stats/total-plays", "host": ["{{baseUrl}}"], "path": ["stats", "total-plays"] } } }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        { "name": "Admin Status", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/admin", "host": ["{{baseUrl}}"], "path": ["admin"] } } }
+      ]
+    }
+  ]
+}

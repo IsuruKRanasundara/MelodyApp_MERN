@@ -1,0 +1,212 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MelodyApp Backend API",
+    "version": "1.0.0",
+    "description": "OpenAPI 3.0 specification for MelodyApp backend."
+  },
+  "servers": [
+    { "url": "http://localhost:5000/api" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "Song": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string" },
+          "artist": { "type": "string" },
+          "image": { "type": "string" },
+          "albumId": { "type": "string" },
+          "releaseDate": { "type": "string", "format": "date-time" },
+          "genre": { "type": "string" },
+          "audioFile": { "type": "string" },
+          "playCount": { "type": "integer" }
+        }
+      },
+      "Album": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string" },
+          "artist": { "type": "string" },
+          "image": { "type": "string" },
+          "releaseDate": { "type": "string", "format": "date-time" },
+          "genre": { "type": "string" },
+          "songs": { "type": "array", "items": { "$ref": "#/components/schemas/Song" } }
+        }
+      },
+      "Playlist": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string" },
+          "user": { "type": "string" },
+          "songs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "email", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "User", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "List of users" } }
+      }
+    },
+    "/users/{id}": {
+      "get": { "tags": ["Users"], "security": [{ "bearerAuth": [] }], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": { "200": { "description": "User" }, "404": { "description": "Not Found" } } },
+      "put": { "tags": ["Users"], "security": [{ "bearerAuth": [] }], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}}, "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Users"], "security": [{ "bearerAuth": [] }], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": { "200": { "description": "Deleted" } } }
+    },
+    "/songs": {
+      "get": { "tags": ["Songs"], "responses": { "200": { "description": "Health/Info" } } }
+    },
+    "/songs/{id}": {
+      "get": { "tags": ["Songs"], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": { "200": { "description": "Song metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Song" } } } }, "404": { "description": "Not Found" } } }
+    },
+    "/songs/{id}/stream": {
+      "get": { "tags": ["Songs"], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": { "200": { "description": "Audio stream" }, "206": { "description": "Partial content" } } }
+    },
+    "/songs/{id}/listen": {
+      "post": {
+        "tags": ["Songs"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "userId": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Recorded" } }
+      }
+    },
+    "/songs/upload": {
+      "post": {
+        "tags": ["Songs"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "artist", "image", "albumId", "releaseDate", "genre", "file"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "artist": { "type": "string" },
+                  "image": { "type": "string" },
+                  "albumId": { "type": "string" },
+                  "releaseDate": { "type": "string", "format": "date-time" },
+                  "genre": { "type": "string" },
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Uploaded" } }
+      }
+    },
+    "/albums": {
+      "get": { "tags": ["Albums"], "responses": { "200": { "description": "List" } } }
+    },
+    "/albums/{id}": {
+      "get": { "tags": ["Albums"], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": { "200": { "description": "Album" }, "404": { "description": "Not Found" } } }
+    },
+    "/playlists": {
+      "post": {
+        "tags": ["Playlists"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string" }, "songs": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/playlists/user": {
+      "get": { "tags": ["Playlists"], "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "My playlists" } } }
+    },
+    "/playlists/{id}": {
+      "get": {
+        "tags": ["Playlists"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Playlist" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/stats/top": {
+      "get": { "tags": ["Stats"], "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer", "default": 10}}], "responses": { "200": { "description": "Top songs" } } }
+    },
+    "/stats/total-plays": {
+      "get": { "tags": ["Stats"], "responses": { "200": { "description": "Totals" } } }
+    },
+    "/admin": {
+      "get": { "tags": ["Admin"], "responses": { "200": { "description": "Admin status" } } }
+    }
+  }
+}

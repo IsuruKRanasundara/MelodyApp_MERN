@@ -1,0 +1,103 @@
+@host = http://localhost:5000
+@api = {{host}}/api
+@token = REPLACE_WITH_JWT
+
+### Auth: Register
+POST {{api}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "john",
+  "email": "john@example.com",
+  "password": "pass123"
+}
+
+### Auth: Login
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "pass123"
+}
+
+### Set token variable (copy from login response)
+# After running the login request, replace @token above manually or use the REST Client env feature.
+
+### Auth: Me (protected)
+GET {{api}}/auth/me
+Authorization: Bearer {{token}}
+
+### Users: list (protected)
+GET {{api}}/users
+Authorization: Bearer {{token}}
+
+### Users: get by id (protected)
+GET {{api}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### Songs: health/info
+GET {{api}}/songs
+
+### Songs: get song metadata
+GET {{api}}/songs/{{songId}}
+
+### Songs: stream
+GET {{api}}/songs/{{songId}}/stream
+
+### Songs: record listen
+POST {{api}}/songs/{{songId}}/listen
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}"
+}
+
+### Songs: upload (protected, multipart)
+POST {{api}}/songs/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data
+
+# Replace file path accordingly; REST Client supports @ syntax for files
+# file=@C:\\path\\to\\audio.mp3
+
+{
+  "title": "My Song",
+  "artist": "Artist",
+  "image": "cover.jpg",
+  "albumId": "{{albumId}}",
+  "releaseDate": "2024-01-01T00:00:00.000Z",
+  "genre": "Pop",
+  "file": "@/absolute/path/to/audio.mp3"
+}
+
+### Albums: list
+GET {{api}}/albums
+
+### Albums: get by id
+GET {{api}}/albums/{{albumId}}
+
+### Playlists: create (protected)
+POST {{api}}/playlists
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Favorites",
+  "songs": ["{{songId}}"]
+}
+
+### Playlists: my playlists (protected)
+GET {{api}}/playlists/user
+Authorization: Bearer {{token}}
+
+### Playlists: get by id (protected)
+GET {{api}}/playlists/{{playlistId}}
+Authorization: Bearer {{token}}
+
+### Stats: top songs
+GET {{api}}/stats/top?limit=5
+
+### Stats: total plays
+GET {{api}}/stats/total-plays
