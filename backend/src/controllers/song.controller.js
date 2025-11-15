@@ -3,6 +3,7 @@ import fs from 'fs';
 import Song from '../models/song.model.js';
 import User from '../models/user.model.js';
 import { promisify } from 'util';
+import cloudinary from '../config/cloudinary.config.js';
 
 // Return song metadata
 export const getSong = async (req, res) => {
@@ -16,11 +17,30 @@ export const getSong = async (req, res) => {
   }
 };
 
+// Get songs by album ID
+export const getSongsByAlbum = async (req, res) => {
+  try {
+    const { albumId } = req.params;
+    const songs = await Song.find({ albumId });
+    res.json(songs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Stream audio file supporting Range requests
 export const streamSong = async (req, res) => {
   try {
     const song = await Song.findById(req.params.id);
-    if (!song || !song.audioFile) return res.status(404).json({ message: 'Song or audio file not found' });
+    if (!song) return res.status(404).json({ message: 'Song not found' });
+
+    // If song has Cloudinary URL, redirect client to stream from Cloudinary
+    if (song.audioUrl) {
+      return res.redirect(302, song.audioUrl);
+    }
+
+    if (!song.audioFile) return res.status(404).json({ message: 'Audio file not found' });
 
     // uploads directory is expected at project root backend/uploads
     const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -82,29 +102,65 @@ export const recordListen = async (req, res) => {
 // Create song metadata after file upload
 export const uploadSong = async (req, res) => {
   try {
+    console.log('Upload song request received');
+    console.log('File:', req.file);
+    console.log('Body:', req.body);
+    
     // multer will attach file to req.file
     const file = req.file;
-    if (!file) return res.status(400).json({ message: 'Missing file' });
+    if (!file) {
+      console.log('No file uploaded');
+      return res.status(400).json({ message: 'Missing file' });
+    }
 
     const { title, artist, image, albumId, releaseDate, genre } = req.body;
     if (!title || !artist || !image || !albumId || !releaseDate || !genre) {
+      console.log('Missing metadata fields');
       return res.status(400).json({ message: 'Missing metadata fields' });
     }
 
-    const song = new Song({
+    let audioUrl;
+    const hasCloudinary = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+    console.log('Has Cloudinary config:', hasCloudinary);
+    
+    if (hasCloudinary) {
+      try {
+        console.log('Uploading to Cloudinary...');
+        const uploadRes = await cloudinary.uploader.upload(file.path, {
+          resource_type: 'auto',
+          folder: 'melodyapp/audio'
+        });
+        audioUrl = uploadRes.secure_url;
+        console.log('Cloudinary upload successful:', audioUrl);
+      } catch (e) {
+        console.error('Cloudinary upload failed:', e);
+      } finally {
+        // cleanup local file if it exists
+        try { fs.existsSync(file.path) && fs.unlinkSync(file.path); } catch (_) {}
+      }
+    } else {
+      console.log('Using local file storage');
+    }
+
+    const songData = {
       title,
       artist,
       image,
       albumId,
       releaseDate: new Date(releaseDate),
       genre,
-      audioFile: file.filename
-    });
+      audioFile: audioUrl ? undefined : file.filename,
+      audioUrl: audioUrl || undefined
+    };
+
+    console.log('Creating song with data:', songData);
+    const song = new Song(songData);
 
     await song.save();
+    console.log('Song saved successfully:', song);
     res.status(201).json(song);
   } catch (err) {
-    console.error(err);
+    console.error('Upload error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

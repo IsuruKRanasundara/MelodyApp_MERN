@@ -20,3 +20,13 @@ export const getAlbum = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+export const createAlbum = async (req, res) => {
+  try {
+    const newAlbum = new Album(req.body);
+    await newAlbum.save();
+    res.status(201).json(newAlbum);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -17,10 +17,15 @@ const songSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
-    // local filename under backend/uploads/ (e.g. "abcd123.mp3")
+    // If using local storage, filename under backend/uploads/ (e.g. "abcd123.mp3"). Optional when using Cloudinary.
     audioFile: {
         type: String,
-        required: true
+        required: false
+    },
+    // If using Cloudinary, store the secure URL here
+    audioUrl: {
+        type: String,
+        required: false
     },
     // total play count
     playCount: {

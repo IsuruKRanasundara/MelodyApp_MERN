@@ -2,6 +2,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import path from 'path';
+// Configure Cloudinary (loads credentials from env)
+import './config/cloudinary.config.js';
 
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.routes.js';
@@ -10,6 +12,8 @@ import songRoutes from './routes/song.route.js';
 import albumRoutes from './routes/album.route.js';
 import statsRoutes from './routes/stats.routes.js';
 import playlistRoutes from './routes/playlist.route.js';
+import spotifyRoutes from './routes/spotify.route.js';
+
 import { connectDB } from './lib/db.js';
 
 dotenv.config();
@@ -34,6 +38,7 @@ app.use('/api/songs', songRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/spotify', spotifyRoutes);
 
 // start server after DB connection
 const start = async () => {

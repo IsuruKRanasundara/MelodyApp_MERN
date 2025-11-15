@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Music, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Repeat, Shuffle, Heart, MoreHorizontal, Clock, Disc } from 'lucide-react';
+import { Music, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Repeat, Shuffle, Heart, Clock, Disc } from 'lucide-react';
 
 // Sample music library
 const musicLibrary = [

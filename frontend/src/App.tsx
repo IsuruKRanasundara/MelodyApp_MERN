@@ -9,6 +9,7 @@ import MusicBrowseTab from './pages/Browse'
 import MusicSignInPage from './pages/SignIn'
 import ProtectedRoute from './components/ProtectedRoutes'
 import { AuthProvider } from './context/AuthContext'
+import MusicLibraryTab from './pages/Library'
 
 function App() {
     const [isDarkMode, setIsDarkMode] = useState(false)
@@ -26,6 +27,7 @@ function App() {
                             <Route path="/about" element={<ProtectedRoute><MusicAboutPage isDarkMode={isDarkMode} /></ProtectedRoute>} />
                             <Route path="/browse" element={<ProtectedRoute><MusicBrowseTab isDarkMode={isDarkMode} /></ProtectedRoute>} />
                             <Route path="/signin" element={<MusicSignInPage isDarkMode={isDarkMode} />} />
+                            <Route path="/library" element={<MusicLibraryTab isDarkMode={isDarkMode} />} />
                         </Routes>
                     </main>
                 </BrowserRouter>

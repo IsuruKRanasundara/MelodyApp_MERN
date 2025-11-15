@@ -91,22 +91,6 @@ export default function MusicPlayerPage({ isDarkMode = true }: { isDarkMode?: bo
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-const uploadAudio = async (file:any) => {
-  const formData = new FormData();
-  formData.append("audio", file);
-
-  const res = await fetch("http://localhost:5000/api/upload-audio", {
-    method: "POST",
-    body: formData
-  });
-
-  const data = await res.json();
-
-  console.log("Uploaded file info:", data);
-
-  return data.url; // ✅ Cloudinary audio URL
-};
-
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-zinc-900' : 'bg-white'} transition-colors duration-500`}>
       {/* Floating Music Icons Background */}
