@@ -47,7 +47,13 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
       const data: SpotifyResponse = response.data;
       setTracks(data.songs || []);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch from Spotify';
+      let errorMessage = 'Failed to fetch from Spotify';
+      if (axios.isAxiosError(err)) {
+        // Extract error message from API response
+        errorMessage = err.response?.data?.error || err.message || errorMessage;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
     } finally {
       setLoading(false);

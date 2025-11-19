@@ -11,6 +11,8 @@ interface Song {
   albumId: string;
   audioUrl?: string;
   audioFile?: string;
+  frontendAudioUrl?: string;
+  streamUrl?: string;
   duration?: number;
   playCount?: number;
   releaseDate?: string;
@@ -52,6 +54,16 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
       setLoading(true);
       try {
         const response = await axios.get(`http://localhost:5000/api/songs/album/${album._id}`);
+        console.log('Fetched songs:', response.data);
+        // Log each song's URL information
+        response.data.forEach((song: Song) => {
+          console.log(`Song "${song.title}":`, {
+            audioUrl: song.audioUrl,
+            frontendAudioUrl: song.frontendAudioUrl,
+            audioFile: song.audioFile,
+            streamUrl: song.streamUrl
+          });
+        });
         setSongs(response.data);
       } catch (error) {
         console.error('Failed to fetch album songs:', error);
@@ -63,11 +75,38 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
   }, [album._id]);
 
   // Play a song
-  const playSong = (song: Song) => {
+  const playSong = (song: Song, retryUrl: string | null = null) => {
     console.log('Attempting to play song:', song);
-    const audioUrl = song.audioUrl || (song.audioFile ? `http://localhost:5000/api/songs/${song._id}/stream` : null);
+    console.log('Song URL fields:', {
+      frontendAudioUrl: song.frontendAudioUrl,
+      audioUrl: song.audioUrl,
+      audioFile: song.audioFile,
+      streamUrl: song.streamUrl
+    });
     
-    console.log('Audio URL:', audioUrl);
+    // Try different URL options in order of preference
+    // Priority: frontendAudioUrl (optimized) > audioUrl (direct Cloudinary) > stream endpoint (local files)
+    let audioUrl: string | null = retryUrl;
+    
+    if (!audioUrl) {
+      // Check if we have Cloudinary URLs first (these should be used, not stream endpoint)
+      if (song.frontendAudioUrl && typeof song.frontendAudioUrl === 'string' && song.frontendAudioUrl.trim().length > 0) {
+        audioUrl = song.frontendAudioUrl;
+        console.log('Using frontendAudioUrl (Cloudinary):', audioUrl);
+      } else if (song.audioUrl && typeof song.audioUrl === 'string' && song.audioUrl.trim().length > 0) {
+        // Use Cloudinary URL directly if available (don't go through stream endpoint)
+        audioUrl = song.audioUrl;
+        console.log('Using audioUrl (Cloudinary):', audioUrl);
+      } else if (song.audioFile && typeof song.audioFile === 'string' && song.audioFile.trim().length > 0) {
+        // Only use stream endpoint for local files (when no Cloudinary URL exists)
+        audioUrl = `http://localhost:5000/api/songs/${song._id}/stream`;
+        console.log('Using stream endpoint (local file):', audioUrl);
+      } else {
+        console.warn('No valid audio source found for song:', song);
+      }
+    }
+    
+    console.log('Selected audio URL:', audioUrl);
     
     if (!audioUrl) {
       console.warn('No audio available for this song');
@@ -81,6 +120,10 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
 
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
+    
+    // Set audio element properties for better compatibility
+    audio.preload = 'metadata';
+    audio.crossOrigin = 'anonymous'; // Important for CORS with Cloudinary
 
     setCurrentTrack({
       song,
@@ -89,11 +132,48 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
       duration: song.duration || 0
     });
 
-    // Add error handling for audio loading
+    // Add error handling for audio loading with fallback
     audio.addEventListener('error', (e) => {
       console.error('Audio loading error:', e);
       console.error('Failed URL:', audioUrl);
-      alert(`Failed to load audio: ${audioUrl}`);
+      console.error('URL type check:', {
+        isCloudinary: audioUrl?.includes('cloudinary.com'),
+        isLocalhost: audioUrl?.includes('localhost'),
+        urlLength: audioUrl?.length
+      });
+      
+      const errorMessage = audio.error 
+        ? `Error ${audio.error.code}: ${audio.error.message || 'Media resource could not be decoded, or the format is not supported'}`
+        : 'Failed to load audio source';
+      console.error('Audio error details:', {
+        code: audio.error?.code,
+        message: audio.error?.message,
+        networkState: audio.networkState,
+        readyState: audio.readyState
+      });
+      
+      // Format error (code 4) - try different URL options
+      if (audio.error?.code === 4) {
+        console.log('Format error detected, trying alternative URLs...');
+        
+        // If we tried frontendAudioUrl, try original audioUrl
+        if (!retryUrl && song.frontendAudioUrl && audioUrl === song.frontendAudioUrl && song.audioUrl && song.audioUrl !== song.frontendAudioUrl) {
+          console.log('Format error with optimized URL, retrying with original Cloudinary URL...');
+          playSong(song, song.audioUrl);
+          return;
+        }
+        
+        // If original audioUrl also failed, try adding format transformation manually
+        if (audioUrl?.includes('cloudinary.com') && !audioUrl.includes('f_mp3')) {
+          const formatUrl = audioUrl.replace('/upload/', '/upload/f_mp3,q_auto/');
+          console.log('Trying manual format transformation:', formatUrl);
+          playSong(song, formatUrl);
+          return;
+        }
+      }
+      
+      // If all options exhausted, show error
+      alert(`Failed to load audio: ${errorMessage}\n\nURL: ${audioUrl}\n\nThis might be a format compatibility issue. Please check the browser console for details.`);
       setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
     });
 
@@ -101,9 +181,27 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
       console.log('Audio can start playing');
     });
 
+    audio.addEventListener('loadstart', () => {
+      console.log('Audio loading started');
+    });
+
+    audio.addEventListener('loadeddata', () => {
+      console.log('Audio data loaded');
+    });
+
+    audio.addEventListener('stalled', () => {
+      console.warn('Audio loading stalled');
+    });
+
+    audio.addEventListener('abort', () => {
+      console.warn('Audio loading aborted');
+    });
+
     audio.play().catch(err => {
       console.error('Failed to play audio:', err);
-      alert(`Failed to play audio: ${err.message}`);
+      const errorMsg = err.message || 'Autoplay was prevented or playback failed';
+      alert(`Failed to play audio: ${errorMsg}\n\nMake sure you click the play button to start playback.`);
+      setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
     });
 
     audio.addEventListener('timeupdate', () => {
@@ -285,9 +383,9 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
                 {songs.map((song, index) => (
                   <div
                     key={song._id}
-                    className={`group px-6 py-3 hover:${isDarkMode ? 'bg-zinc-700/50' : 'bg-gray-50'} transition-colors duration-200 ${(song.audioUrl || song.audioFile) ? 'cursor-pointer' : 'cursor-default'} ${currentTrack?.song._id === song._id ? (isDarkMode ? 'bg-green-900/20' : 'bg-green-50') : ''}`}
+                    className={`group px-6 py-3 hover:${isDarkMode ? 'bg-zinc-700/50' : 'bg-gray-50'} transition-colors duration-200 ${(song.frontendAudioUrl || song.audioUrl || song.audioFile) ? 'cursor-pointer' : 'cursor-default'} ${currentTrack?.song._id === song._id ? (isDarkMode ? 'bg-green-900/20' : 'bg-green-50') : ''}`}
                     onClick={() => {
-                      if (song.audioUrl || song.audioFile) {
+                      if (song.frontendAudioUrl || song.audioUrl || song.audioFile) {
                         playSong(song);
                       } else {
                         alert('This song has no audio file available');
@@ -316,7 +414,7 @@ export default function AlbumDetail({ album, onBack, isDarkMode }: AlbumDetailPr
                             <span className={`group-hover:hidden text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               {index + 1}
                             </span>
-                            {(song.audioUrl || song.audioFile) ? (
+                            {(song.frontendAudioUrl || song.audioUrl || song.audioFile) ? (
                               <Play className={`w-4 h-4 hidden group-hover:block ${isDarkMode ? 'text-white' : 'text-gray-900'}`} />
                             ) : (
                               <span className={`text-xs hidden group-hover:block ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>

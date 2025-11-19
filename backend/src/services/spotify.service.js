@@ -18,19 +18,66 @@ function ensureFetch() {
 
 export function parseSpotifyUrl(url) {
     // Examples:
-    // https://open.spotify.com/track/{id}?
+    // https://open.spotify.com/track/{id}
+    // https://open.spotify.com/track/{id}?si=...
     // https://open.spotify.com/album/{id}
     // https://open.spotify.com/playlist/{id}
+    // spotify:track:{id}
+    // spotify:album:{id}
+    // spotify:playlist:{id}
+    if (!url || typeof url !== 'string') return null;
+    
+    // Trim whitespace
+    url = url.trim();
+    
+    // Handle spotify: URI scheme (e.g., spotify:track:4iV5W9uYEdYUVa79Axb7Rh)
+    if (url.startsWith('spotify:')) {
+        const match = url.match(/^spotify:(track|album|playlist):([^?]+)/);
+        if (match) {
+            const [, type, id] = match;
+            // Clean ID - remove any query params or fragments that might be in the ID
+            const cleanId = id.split('?')[0].split('#')[0].trim();
+            if (cleanId && ['track', 'album', 'playlist'].includes(type)) {
+                return { type, id: cleanId };
+            }
+        }
+        return null;
+    }
+    
+    // Handle HTTP/HTTPS URLs
     try {
         const u = new URL(url);
+        
+        // Check if it's a Spotify domain
         if (!u.hostname.includes('spotify.com')) return null;
+        
+        // Parse pathname
         const segments = u.pathname.split('/').filter(Boolean);
         if (segments.length < 2) return null;
-        const type = segments[0];
-        const id = segments[1];
+        
+        const type = segments[0].toLowerCase();
+        let id = segments[1];
+        
+        // Clean the ID - remove any query params or fragments that might be in the path
+        id = id.split('?')[0].split('#')[0].trim();
+        
+        // Validate type
         if (!['track', 'album', 'playlist'].includes(type)) return null;
+        
+        // Validate ID is not empty
+        if (!id) return null;
+        
         return { type, id };
     } catch (e) {
+        // If URL parsing fails, try regex fallback for common patterns
+        // Spotify IDs are base62, so they can contain alphanumeric characters
+        const match = url.match(/spotify\.com\/(track|album|playlist)\/([a-zA-Z0-9]+)/);
+        if (match) {
+            const [, type, id] = match;
+            if (['track', 'album', 'playlist'].includes(type) && id) {
+                return { type, id };
+            }
+        }
         return null;
     }
 }
@@ -73,18 +120,19 @@ function normalizeTrack(track) {
         spotifyUrl: track.external_urls?.spotify
     };
 }
-export async function getSongs() {
+export async function getSongs(query = 'popular') {
     const token = await getAccessToken();
     const f = await ensureFetch();
     const limit = 10; // Set your desired limit here
-    const url = `${SPOTIFY_API_BASE}/search?q=sankaDineth&type=track&limit=${limit}`;
+    // Spotify API requires 'q' parameter for search
+    const encodedQuery = encodeURIComponent(query);
+    const url = `${SPOTIFY_API_BASE}/search?q=${encodedQuery}&type=track&limit=${limit}`;
     const resp = await f(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!resp.ok) {
         const text = await resp.text();
         throw new Error(`Spotify get songs error: ${resp.status} ${text}`);
     }
     return resp.json();
-
 }
 
 export async function fetchById(type, id) {
