@@ -1,5 +1,6 @@
 import { Music, Search, Play, Pause, SkipForward, Volume2, Heart, ExternalLink } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 interface SpotifyTrack {
@@ -27,25 +28,72 @@ interface CurrentTrack {
 }
 
 export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) {
+  const navigate = useNavigate();
   const [tracks, setTracks] = useState<SpotifyTrack[]>([]);
   const [searchUrl, setSearchUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTrack, setCurrentTrack] = useState<CurrentTrack | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const eventListenersRef = useRef<{ audio: HTMLAudioElement; handlers: { event: string; handler: (e?: Event) => void }[] } | null>(null);
 
-  // Search for Spotify tracks
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.load();
+      }
+      // Clean up event listeners
+      if (eventListenersRef.current) {
+        eventListenersRef.current.handlers.forEach(({ event, handler }) => {
+          eventListenersRef.current!.audio.removeEventListener(event, handler);
+        });
+        eventListenersRef.current = null;
+      }
+    };
+  }, []);
+
+  // Check if input is a URL
+  const isUrl = (str: string) => {
+    try {
+      new URL(str);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Check if input is a Spotify URL
+  const isSpotifyUrl = (str: string) => {
+    return str.includes('spotify.com') || str.startsWith('spotify:');
+  };
+
+  // Search for Spotify tracks (supports both URL and text search)
   const searchSpotify = async () => {
     if (!searchUrl.trim()) return;
     setLoading(true);
     setError(null);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/spotify/resolve', {
-        url: searchUrl.trim()
-      });
-      const data: SpotifyResponse = response.data;
-      setTracks(data.songs || []);
+      const searchQuery = searchUrl.trim();
+      
+      // If it's a Spotify URL, use the resolve endpoint
+      if (isUrl(searchQuery) && isSpotifyUrl(searchQuery)) {
+        const response = await axios.post('http://localhost:5000/api/spotify/resolve', {
+          url: searchQuery
+        });
+        const data: SpotifyResponse = response.data;
+        setTracks(data.songs || []);
+      } else {
+        // Otherwise, use text search (artist name, song name, etc.)
+        const response = await axios.get('http://localhost:5000/api/spotify/songs', {
+          params: { q: searchQuery }
+        });
+        const data: SpotifyResponse = response.data;
+        setTracks(data.songs || []);
+      }
     } catch (err: unknown) {
       let errorMessage = 'Failed to fetch from Spotify';
       if (axios.isAxiosError(err)) {
@@ -61,47 +109,172 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
   };
 
   // Play a track
-  const playTrack = (track: SpotifyTrack) => {
-    if (!track.preview_url) {
-      setError('No preview available for this track');
+  const playTrack = async (track: SpotifyTrack) => {
+    // Check if preview URL exists and is valid
+    if (!track.preview_url || track.preview_url.trim() === '' || track.preview_url === 'null') {
+      setError('No preview available for this track. Not all tracks have preview audio.');
       return;
     }
 
+    console.log('Attempting to play track:', track.title);
+    console.log('Preview URL:', track.preview_url);
+
+    // Stop current track if playing and clean up old listeners
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current.load();
+    }
+    
+    // Clean up previous event listeners
+    if (eventListenersRef.current) {
+      eventListenersRef.current.handlers.forEach(({ event, handler }) => {
+        eventListenersRef.current!.audio.removeEventListener(event, handler);
+      });
+      eventListenersRef.current = null;
     }
 
-    const audio = new Audio(track.preview_url);
-    audioRef.current = audio;
+    try {
+      const audio = new Audio();
+      audioRef.current = audio;
+      
+      // Set audio properties for better compatibility
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
+      
+      // Set up event listeners BEFORE setting src
+      const handleTimeUpdate = () => {
+        if (audio && !isNaN(audio.currentTime)) {
+          setCurrentTrack(prev => prev ? {...prev, currentTime: audio.currentTime} : null);
+        }
+      };
 
-    setCurrentTrack({
-      track,
-      isPlaying: true,
-      currentTime: 0,
-      duration: 30 // Spotify previews are 30s
-    });
+      const handleEnded = () => {
+        console.log('Audio playback ended');
+        setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
+      };
 
-    audio.play();
+      const handleError = (e?: Event) => {
+        console.error('Audio playback error:', e);
+        console.error('Audio error details:', {
+          error: audio.error,
+          code: audio.error?.code,
+          message: audio.error?.message,
+          networkState: audio.networkState,
+          readyState: audio.readyState,
+          src: audio.src
+        });
+        
+        let errorMsg = 'Failed to play audio preview. ';
+        if (audio.error) {
+          switch (audio.error.code) {
+            case 1: // MEDIA_ERR_ABORTED
+              errorMsg += 'Playback was aborted.';
+              break;
+            case 2: // MEDIA_ERR_NETWORK
+              errorMsg += 'Network error occurred.';
+              break;
+            case 3: // MEDIA_ERR_DECODE
+              errorMsg += 'Audio could not be decoded.';
+              break;
+            case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+              errorMsg += 'Audio format not supported or preview not available.';
+              break;
+            default:
+              errorMsg += 'Unknown error occurred.';
+          }
+        } else {
+          errorMsg += 'The track may not be available in your region or the preview URL is invalid.';
+        }
+        
+        setError(errorMsg);
+        setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
+      };
 
-    audio.addEventListener('timeupdate', () => {
-      setCurrentTrack(prev => prev ? {...prev, currentTime: audio.currentTime} : null);
-    });
+      const handleLoadedMetadata = () => {
+        console.log('Audio metadata loaded, duration:', audio.duration);
+        setCurrentTrack(prev => prev ? {
+          ...prev,
+          duration: audio.duration || 30,
+          isPlaying: true
+        } : null);
+      };
 
-    audio.addEventListener('ended', () => {
-      setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
-    });
+      const handleCanPlay = () => {
+        console.log('Audio can start playing');
+      };
+
+      const handleLoadStart = () => {
+        console.log('Audio loading started');
+      };
+
+      // Store handlers for cleanup
+      const handlers = [
+        { event: 'timeupdate', handler: handleTimeUpdate },
+        { event: 'ended', handler: handleEnded },
+        { event: 'error', handler: handleError },
+        { event: 'loadedmetadata', handler: handleLoadedMetadata },
+        { event: 'canplay', handler: handleCanPlay },
+        { event: 'loadstart', handler: handleLoadStart }
+      ];
+
+      handlers.forEach(({ event, handler }) => {
+        audio.addEventListener(event, handler);
+      });
+
+      // Store reference for cleanup
+      eventListenersRef.current = { audio, handlers };
+
+      // Set initial track state
+      setCurrentTrack({
+        track,
+        isPlaying: false,
+        currentTime: 0,
+        duration: 30 // Default, will be updated by loadedmetadata
+      });
+
+      // Set src and attempt to play
+      audio.src = track.preview_url;
+      
+      // Try to play - this might fail due to browser autoplay policies
+      try {
+        await audio.play();
+        console.log('Audio playback started successfully');
+        setCurrentTrack(prev => prev ? {...prev, isPlaying: true} : null);
+      } catch (playError: unknown) {
+        console.error('Play error:', playError);
+        const error = playError as { name?: string; message?: string };
+        // If autoplay is blocked, user needs to interact first
+        if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
+          setError('Please click the play button again. Some browsers require user interaction to play audio.');
+          // Don't set currentTrack to null - keep it so user can retry
+        } else {
+          throw playError; // Re-throw to be caught by outer catch
+        }
+      }
+    } catch (playError: unknown) {
+      console.error('Error setting up audio:', playError);
+      const error = playError as { message?: string };
+      setError(`Failed to play audio: ${error.message || 'Unknown error'}. Please try another track.`);
+      setCurrentTrack(null);
+    }
   };
 
   // Toggle play/pause
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     if (!audioRef.current || !currentTrack) return;
 
-    if (currentTrack.isPlaying) {
-      audioRef.current.pause();
-      setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
-    } else {
-      audioRef.current.play();
-      setCurrentTrack(prev => prev ? {...prev, isPlaying: true} : null);
+    try {
+      if (currentTrack.isPlaying) {
+        audioRef.current.pause();
+        setCurrentTrack(prev => prev ? {...prev, isPlaying: false} : null);
+      } else {
+        await audioRef.current.play();
+        setCurrentTrack(prev => prev ? {...prev, isPlaying: true} : null);
+      }
+    } catch (error) {
+      console.error('Error toggling play/pause:', error);
+      setError('Failed to play audio. Please try again.');
     }
   };
 
@@ -110,6 +283,8 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
+      audioRef.current.load();
     }
     setCurrentTrack(null);
   };
@@ -149,7 +324,7 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
           <div className="relative max-w-2xl">
             <input
               type="text"
-              placeholder="Enter Spotify URL (track, album, or playlist)..."
+              placeholder="Search by artist name, song name, or paste Spotify URL..."
               value={searchUrl}
               onChange={(e) => setSearchUrl(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && searchSpotify()}
@@ -164,23 +339,23 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
             </button>
           </div>
 
-          {/* Example URLs */}
+          {/* Search Examples */}
           <div className="max-w-2xl mt-4">
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-              Example URLs:
+              Try searching for: <span className="font-semibold">"Ed Sheeran"</span>, <span className="font-semibold">"Shape of You"</span>, or paste a Spotify URL
             </p>
             <div className="flex flex-wrap gap-2">
               {[
-                'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh',
-                'https://open.spotify.com/album/382ObEPsp2rxGrnsizN5TX',
-                'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M'
-              ].map((url, index) => (
+                { label: 'Search: Ed Sheeran', query: 'Ed Sheeran' },
+                { label: 'Search: Shape of You', query: 'Shape of You' },
+                { label: 'URL: Track', url: 'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh' }
+              ].map((item, index) => (
                 <button
                   key={index}
-                  onClick={() => setSearchUrl(url)}
+                  onClick={() => setSearchUrl(item.query || item.url || '')}
                   className={`text-xs px-3 py-1 rounded-full ${isDarkMode ? 'bg-zinc-700 text-green-400 hover:bg-zinc-600' : 'bg-green-100 text-green-700 hover:bg-green-200'} transition-colors`}
                 >
-                  {index === 0 ? 'Track' : index === 1 ? 'Album' : 'Playlist'}
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -216,13 +391,24 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
                 </div>
               ))}
             </div>
+          ) : tracks.length === 0 ? (
+            <div className={`text-center py-12 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className="text-lg">No tracks found. Try a different search.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {tracks.map((track) => (
+              {tracks.map((track, index) => (
                 <div
                   key={track.id}
+                  onClick={() => navigate('/player', { 
+                    state: { 
+                      track, 
+                      allTracks: tracks,
+                      currentIndex: index
+                    } 
+                  })}
                   className={`group ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-750' : 'bg-white hover:bg-gray-50'} 
-                    rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105`}
+                    rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer`}
                 >
                   {/* Track Cover */}
                   <div className="relative h-48 overflow-hidden">
@@ -233,15 +419,19 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
                     />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                       <button
-                        onClick={() => playTrack(track)}
-                        disabled={!track.preview_url}
-                        className="w-16 h-16 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 rounded-full flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-transform duration-300"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playTrack(track);
+                        }}
+                        disabled={!track.preview_url || track.preview_url === 'null' || track.preview_url.trim() === ''}
+                        className="w-16 h-16 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-full flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-transform duration-300"
+                        title={!track.preview_url || track.preview_url === 'null' ? 'No preview available' : 'Play preview'}
                       >
                         <Play className="w-8 h-8 text-white ml-1" />
                       </button>
                     </div>
-                    {!track.preview_url && (
-                      <div className="absolute top-2 right-2 bg-gray-500 text-white text-xs px-2 py-1 rounded">
+                    {(!track.preview_url || track.preview_url === 'null' || track.preview_url.trim() === '') && (
+                      <div className="absolute top-2 right-2 bg-gray-500/80 text-white text-xs px-2 py-1 rounded">
                         No Preview
                       </div>
                     )}
@@ -266,13 +456,19 @@ export default function MusicBrowseTab({ isDarkMode }: { isDarkMode: boolean }) 
                         {formatTime(track.duration_ms / 1000)}
                       </span>
                       <div className="flex space-x-2">
-                        <button className={`p-1 rounded ${isDarkMode ? 'hover:bg-zinc-700' : 'hover:bg-gray-200'}`}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className={`p-1 rounded ${isDarkMode ? 'hover:bg-zinc-700' : 'hover:bg-gray-200'}`}
+                        >
                           <Heart className="w-4 h-4" />
                         </button>
                         <a
                           href={track.spotifyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className={`p-1 rounded ${isDarkMode ? 'hover:bg-zinc-700' : 'hover:bg-gray-200'}`}
                         >
                           <ExternalLink className="w-4 h-4" />

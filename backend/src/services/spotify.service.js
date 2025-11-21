@@ -123,7 +123,7 @@ function normalizeTrack(track) {
 export async function getSongs(query = 'popular') {
     const token = await getAccessToken();
     const f = await ensureFetch();
-    const limit = 10; // Set your desired limit here
+    const limit = 50; // Increased limit for better search results
     // Spotify API requires 'q' parameter for search
     const encodedQuery = encodeURIComponent(query);
     const url = `${SPOTIFY_API_BASE}/search?q=${encodedQuery}&type=track&limit=${limit}`;

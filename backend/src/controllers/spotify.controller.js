@@ -13,10 +13,33 @@ export async function postResolve(req, res) {
         res.status(400).json({ error: err.message });
     }
 }
-export  async function getSong(req, res) {
+export async function getSong(req, res) {
     try {
-        const song = await getSongs();
-        res.json(song);
+        const query = req.query.q || req.query.query || 'popular';
+        const response = await getSongs(query);
+        
+        // Normalize tracks from Spotify search response
+        const normalizeTrack = (track) => ({
+            id: track.id,
+            title: track.name,
+            artists: track.artists.map(a => ({ id: a.id, name: a.name })),
+            album: track.album ? { 
+                id: track.album.id, 
+                name: track.album.name, 
+                image: track.album.images?.[0]?.url 
+            } : null,
+            duration_ms: track.duration_ms,
+            preview_url: track.preview_url,
+            spotifyUrl: track.external_urls?.spotify
+        });
+        
+        const tracks = response.tracks?.items?.map(normalizeTrack) || [];
+        
+        res.json({ 
+            type: 'search', 
+            songs: tracks,
+            query: query
+        });
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
