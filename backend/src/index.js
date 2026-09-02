@@ -42,7 +42,7 @@ app.use(async (_req, res, next) => {
 });
 
 // serve uploaded files
-const uploadsDir = path.join(process.cwd(), 'uploads');
+const uploadsDir = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsDir));
 
 // routes
