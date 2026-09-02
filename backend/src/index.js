@@ -54,6 +54,9 @@ app.use('/api/albums', albumRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/playlists', playlistRoutes);
 app.use('/api/spotify', spotifyRoutes);
+app.get('/', (_req, res) => {
+  res.send('MelodyApp Backend is running.');
+});
 
 if (!process.env.VERCEL) {
   const PORT = Number(process.env.PORT) || 5000;
