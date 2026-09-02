@@ -3,7 +3,14 @@
 import {v2 as cloudinary} from 'cloudinary';
 
 // Configure Cloudinary using environment variables
-cloudinary.config(process.env.CLOUDINARY_URL);
+
+
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Generate streaming URL for audio files that works with frontend
 export const generateAudioStreamUrl = (publicId) => {

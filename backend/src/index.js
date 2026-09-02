@@ -19,7 +19,6 @@ import { connectDB } from './lib/db.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // middleware
 app.use(cors());
@@ -41,9 +40,20 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/spotify', spotifyRoutes);
 
 // start server after DB connection
-const start = async () => {
-    await connectDB();
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-};
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.PORT) {
+  throw new Error('PORT environment variable is required in production');
+}
+
+const PORT = isProduction ? Number(process.env.PORT) : 5000;
+
+app.listen(PORT, () => {
+  console.log(
+    `Server running on port ${PORT} in ${
+      isProduction ? 'production' : 'development'
+    } mode`,
+  );
+});
 
 start();
