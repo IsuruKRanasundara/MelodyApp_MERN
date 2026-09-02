@@ -1,14 +1,14 @@
 // server.js
 
-require('dotenv').config();
+import 'dotenv/config';
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
 
-const authRoutes = require('./routes/auth');
-const songsRoutes = require('./routes/songs');
-const playlistsRoutes = require('./routes/playlists');
+import authRoutes from './src/routes/auth.routes.js';
+import songsRoutes from './src/routes/song.route.js';
+import playlistsRoutes from './src/routes/playlist.route.js';
 
 const app = express();
 
@@ -77,4 +77,4 @@ async function start() {
 
 start();
 
-module.exports = app;
+export default app;
