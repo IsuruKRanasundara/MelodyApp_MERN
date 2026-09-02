@@ -7,7 +7,7 @@ import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-const uploadsDir = path.join(process.cwd(), 'uploads');
+const uploadsDir = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'uploads');
 
 // Ensure uploads directory exists
 if (!fs.existsSync(uploadsDir)) {

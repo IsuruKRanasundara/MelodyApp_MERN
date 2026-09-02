@@ -145,7 +145,7 @@ export const streamSong = async (req, res) => {
     if (!song.audioFile) return res.status(404).json({ message: 'Audio file not found' });
 
     // uploads directory is expected at project root backend/uploads
-    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const uploadsDir = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'uploads');
     const filePath = path.join(uploadsDir, song.audioFile);
 
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'Audio file not found on disk' });
